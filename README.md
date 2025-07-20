@@ -1,4 +1,4 @@
-# 🦙 Ollama Chat Interface
+# 🦙 LLM Reader
 
 A web-based chat interface for local Ollama models with PDF upload and analysis capabilities.
 
@@ -12,9 +12,10 @@ A web-based chat interface for local Ollama models with PDF upload and analysis 
 ## 🚀 Quick Start
 
 ### Prerequisites
-1. Install [Ollama](https://ollama.ai)
-2. Start Ollama: `ollama serve`
-3. Pull model: `ollama pull gemma3:1b`
+1. Install [uv](https://docs.astral.sh/uv/) - Fast Python package manager
+2. Install [Ollama](https://ollama.ai)
+3. Start Ollama: `ollama serve`
+4. Pull model: `ollama pull gemma3:1b`
 
 ### Installation & Run
 ```bash
@@ -39,6 +40,10 @@ def __init__(self, model: str = "gemma3:1b"):
 
 ## 📦 Dependencies
 
-- `ollama` - Ollama Python client
-- `gradio` - Web interface
-- `pymupdf4llm` - PDF processing
+- `gradio>=4.0.0` - Web interface framework
+- `ollama>=0.3.0` - Ollama Python client
+- `pymupdf4llm>=0.0.5` - PDF processing and markdown conversion
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
