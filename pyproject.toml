@@ -1,0 +1,10 @@
+[project]
+name = "llm-reader"
+version = "0.1.0"
+description = "Simple LLM Reader for PDF analysis with Ollama"
+requires-python = ">=3.9"
+dependencies = [
+    "gradio>=4.0.0",
+    "ollama>=0.3.0",
+    "pymupdf4llm>=0.0.5",
+]
