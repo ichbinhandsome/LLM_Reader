@@ -4,6 +4,9 @@ Gradio web chat interface for Ollama.
 import gradio as gr
 import time
 import argparse
+import signal
+import sys
+import atexit
 from typing import List, Tuple, Generator
 from ollama_client import OllamaClient
 import logging
@@ -12,6 +15,31 @@ import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global variables for cleanup
+global_chat_interface = None
+cleanup_called = False
+
+
+def cleanup_handler():
+    """Cleanup function called on exit to stop the model."""
+    global global_chat_interface, cleanup_called
+    
+    # Prevent multiple cleanup calls
+    if cleanup_called:
+        return
+    cleanup_called = True
+    
+    if global_chat_interface and global_chat_interface.client:
+        logger.info("🧹 Cleaning up - stopping model...")
+        global_chat_interface.client.cleanup()
+
+
+def signal_handler(signum, frame):
+    """Handle interrupt signals."""
+    logger.info(f"\n🛑 Received signal {signum}. Stopping model and shutting down...")
+    cleanup_handler()
+    sys.exit(0)
 
 
 class ChatInterface:
@@ -218,6 +246,8 @@ class ChatInterface:
 
 def main():
     """Main function to run the chat interface."""
+    global global_chat_interface
+    
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Ollama Chat Interface with Gradio")
     parser.add_argument(
@@ -245,6 +275,12 @@ def main():
     
     # Initialize chat interface with specified model
     chat_interface = ChatInterface(model=args.model)
+    global_chat_interface = chat_interface  # Store for cleanup
+    
+    # Register cleanup handlers
+    atexit.register(cleanup_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     
     # Check if Ollama is running
     status, details = chat_interface.check_ollama_status()
@@ -263,15 +299,25 @@ def main():
     print(f"\n🚀 Launching Gradio interface on {args.host}:{args.port}...")
     print(f"💬 Using model: {args.model}")
     print("💬 Open your browser and start chatting with Ollama!")
+    print("💡 Press Ctrl+C to stop the interface and unload the model")
     
-    interface.launch(
-        server_name=args.host,
-        server_port=args.port,
-        share=False,
-        debug=False,
-        show_error=True,
-        inbrowser=True            # Automatically open browser
-    )
+    try:
+        interface.launch(
+            server_name=args.host,
+            server_port=args.port,
+            share=False,
+            debug=False,
+            show_error=True,
+            inbrowser=True            # Automatically open browser
+        )
+    except KeyboardInterrupt:
+        print("\n🛑 Keyboard interrupt received")
+        # cleanup_handler() will be called by signal handler or atexit
+    except Exception as e:
+        print(f"\n❌ Error running interface: {e}")
+        cleanup_handler()
+    finally:
+        print("👋 Goodbye!")
 
 
 if __name__ == "__main__":

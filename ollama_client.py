@@ -4,6 +4,8 @@ Simple Ollama API client using ollama-python library.
 import ollama
 from typing import Dict, List, Generator
 import logging
+import subprocess
+import atexit
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 class OllamaClient:
     """Simple client for interacting with Ollama."""
     
-    def __init__(self, host: str = "http://localhost:11434", model: str = "gemma3:1b"):
+    def __init__(self, host: str = "http://localhost:11434", model: str = "gemma3:4b"):
         """Initialize Ollama client."""
         self.host = host
         self.model = model
@@ -107,6 +109,41 @@ class OllamaClient:
     def clear_conversation(self):
         """Clear conversation history."""
         self.conversation_history = []
+    
+    def stop_model(self, model_name: str = None) -> bool:
+        """Stop/unload a specific model from memory."""
+        target_model = model_name or self.model
+        try:
+            logger.info(f"🛑 Stopping model: {target_model}")
+            # Use subprocess to call ollama stop command
+            result = subprocess.run(
+                ["ollama", "stop", target_model],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"✅ Model {target_model} stopped successfully")
+                return True
+            else:
+                logger.warning(f"⚠️ Model {target_model} may not have been loaded or already stopped")
+                return True  # Not necessarily an error
+                
+        except subprocess.TimeoutExpired:
+            logger.error(f"❌ Timeout stopping model {target_model}")
+            return False
+        except FileNotFoundError:
+            logger.error("❌ Ollama command not found. Please install Ollama first.")
+            return False
+        except Exception as e:
+            logger.error(f"❌ Error stopping model {target_model}: {e}")
+            return False
+    
+    def cleanup(self):
+        """Cleanup function to stop the current model."""
+        if self.model:
+            self.stop_model(self.model)
 
 
 # Simple test
