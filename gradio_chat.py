@@ -3,6 +3,7 @@ Gradio web chat interface for Ollama.
 """
 import gradio as gr
 import time
+import argparse
 from typing import List, Tuple, Generator
 from ollama_client import OllamaClient
 import logging
@@ -16,8 +17,8 @@ logger = logging.getLogger(__name__)
 class ChatInterface:
     """Gradio chat interface for Ollama."""
     
-    def __init__(self):
-        self.client = OllamaClient()
+    def __init__(self, model: str = "gemma3:4b"):
+        self.client = OllamaClient(model=model)
         self.pdf_content = ""  # Store PDF content for history display
         self.conversation_history_text = ""  # Store conversation for display
         
@@ -217,7 +218,33 @@ class ChatInterface:
 
 def main():
     """Main function to run the chat interface."""
-    chat_interface = ChatInterface()
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Ollama Chat Interface with Gradio")
+    parser.add_argument(
+        "--model", 
+        type=str, 
+        default="gemma3:4b",
+        help="Ollama model to use for chat (default: gemma3:4b)"
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Host to run the Gradio interface on (default: 127.0.0.1)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=7860,
+        help="Port to run the Gradio interface on (default: 7860)"
+    )
+    
+    args = parser.parse_args()
+    
+    print(f"🤖 Starting Ollama Chat Interface with model: {args.model}")
+    
+    # Initialize chat interface with specified model
+    chat_interface = ChatInterface(model=args.model)
     
     # Check if Ollama is running
     status, details = chat_interface.check_ollama_status()
@@ -233,13 +260,14 @@ def main():
     # Create and launch interface
     interface = chat_interface.create_interface()
     
-    print("\n🚀 Launching Gradio interface...")
+    print(f"\n🚀 Launching Gradio interface on {args.host}:{args.port}...")
+    print(f"💬 Using model: {args.model}")
     print("💬 Open your browser and start chatting with Ollama!")
     
     interface.launch(
-        server_name="127.0.0.1",  # Use localhost instead of 0.0.0.0
-        server_port=7860,         # Default Gradio port
-        share=False,              # Set to True for public sharing
+        server_name=args.host,
+        server_port=args.port,
+        share=False,
         debug=False,
         show_error=True,
         inbrowser=True            # Automatically open browser
