@@ -2,7 +2,7 @@
 Simple Ollama API client using ollama-python library.
 """
 import ollama
-from typing import Dict, List, Generator
+from typing import Dict, List, Generator, Union, Optional
 import logging
 import subprocess
 import atexit
@@ -76,31 +76,68 @@ class OllamaClient:
         except Exception as e:
             yield f"Error: {str(e)}"
     
-    def chat_with_history(self, user_message: str) -> str:
-        """Chat with automatic conversation history management."""
-        # Add user message to history
-        self.conversation_history.append({"role": "user", "content": user_message})
+    def chat_with_history(self, user_message: str, image_path: Optional[str] = None) -> str:
+        """Chat with automatic conversation history management, optionally with image."""
+        # Prepare message for history
+        message = {"role": "user", "content": user_message}
+        if image_path:
+            message["images"] = [image_path]
         
-        # Get response
-        response = self.chat(self.conversation_history)
+        # Add user message to history
+        self.conversation_history.append(message)
+        
+        # Get response using direct ollama chat
+        try:
+            if image_path:
+                # Use ollama.chat directly for image messages
+                response = self.client.chat(
+                    model=self.model,
+                    messages=self.conversation_history,
+                    stream=False
+                )
+                response_content = response['message']['content']
+            else:
+                # Use regular chat method for text-only
+                response_content = self.chat(self.conversation_history)
+        except Exception as e:
+            return f"Error: {str(e)}"
         
         # Add assistant response to history
-        if not response.startswith("Error:"):
-            self.conversation_history.append({"role": "assistant", "content": response})
+        if not response_content.startswith("Error:"):
+            self.conversation_history.append({"role": "assistant", "content": response_content})
         
-        return response
+        return response_content
     
-    def stream_chat_with_history(self, user_message: str) -> Generator[str, None, None]:
-        """Stream chat with automatic conversation history management."""
+    def stream_chat_with_history(self, user_message: str, image_path: Optional[str] = None) -> Generator[str, None, None]:
+        """Stream chat with automatic conversation history management, optionally with image."""
+        # Prepare message for history
+        message = {"role": "user", "content": user_message}
+        if image_path:
+            message["images"] = [image_path]
+        
         # Add user message to history
-        self.conversation_history.append({"role": "user", "content": user_message})
+        self.conversation_history.append(message)
         
         # Stream response and collect full response
         full_response = ""
-        for chunk in self.stream_chat(self.conversation_history):
-            if not chunk.startswith("Error:"):
-                full_response += chunk
-            yield chunk
+        try:
+            if image_path:
+                # Use ollama client directly for streaming with images
+                for chunk in self.client.chat(model=self.model, messages=self.conversation_history, stream=True):
+                    if 'message' in chunk and 'content' in chunk['message']:
+                        chunk_content = chunk['message']['content']
+                        full_response += chunk_content
+                        yield chunk_content
+            else:
+                # Use regular stream chat method for text-only
+                for chunk in self.stream_chat(self.conversation_history):
+                    if not chunk.startswith("Error:"):
+                        full_response += chunk
+                    yield chunk
+        except Exception as e:
+            error_msg = f"Error: {str(e)}"
+            yield error_msg
+            return
         
         # Add complete assistant response to history
         if full_response and not full_response.startswith("Error:"):
@@ -179,6 +216,16 @@ if __name__ == "__main__":
         print(f"Bot: {response2}")
         
         print(f"\n📊 Conversation length: {len(client.conversation_history)} messages")
+        
+        # Test image handling (if images available)
+        print("\n🖼️ Testing image handling...")
+        try:
+            # This will fail if no image is available, but shows the API usage
+            response3 = client.chat_with_history("What's in this image?", "test.jpg")
+            print(f"User: What's in this image? [with image: test.jpg]")
+            print(f"Bot: {response3}")
+        except Exception as e:
+            print(f"Note: Image test skipped (no test image available): {e}")
         
     else:
         print("❌ Cannot connect to Ollama server")
