@@ -1,14 +1,15 @@
 # 🦙 LLM Reader
 
-A web-based chat interface for local Ollama models with PDF upload and image analysis capabilities.
+A web-based chat interface for local Ollama models with PDF upload, image analysis, and website content retrieval capabilities.
 
 ## ✨ Features
 
 - 💬 **Real-time Chat** - Stream responses from local Ollama models
 - 📄 **PDF Analysis** - Upload PDFs and ask questions about their content
-- �️ **Image Analysis** - Upload images and analyze them with vision-capable models
+- 🖼️ **Image Analysis** - Upload images and analyze them with vision-capable models
+- 🌐 **Website Retrieval** - Extract and analyze content from any website using Jina Reader API
 - 🔄 **Clean Interface** - Simple conversation management and reset
-- 🚀 **Fast** - Uses `gemma3:4b` model for quick responses with both text and image support
+- 🚀 **Fast** - Uses `gemma3:4b` model for quick responses with text, image, and web content support
 
 ## 🚀 Quick Start
 
@@ -33,9 +34,12 @@ Open `http://localhost:7860` in your browser (or your custom host:port).
 ## 🎯 Usage
 
 - **Chat**: Type messages and get streaming responses
-- **Upload Files**: Select "PDF Document" and/or "Image" to show upload options
+- **Upload Files**: Select "PDF Document", "Image", and/or "Website URL" to show upload options
 - **PDF Upload**: Upload PDFs to analyze documents and ask questions about content
 - **Image Upload**: Upload images for analysis (supported by default `gemma3:4b` model or specialized vision models)
+- **Website Retrieval**: Enter any website URL to extract and analyze its content using Jina Reader API
+  - Works without API key (with rate limits)
+  - Optional Jina API key for better performance and higher rate limits
 - **Reset**: Clear conversation and uploaded content
 - **Model Selection**: Use `--model` parameter to specify which Ollama model to use
 - **Auto Cleanup**: Model is automatically unloaded when stopping the interface (Ctrl+C)
@@ -58,6 +62,23 @@ Available options:
 - `gradio>=4.0.0` - Web interface framework
 - `ollama>=0.3.0` - Ollama Python client
 - `pymupdf4llm>=0.0.5` - PDF processing and markdown conversion
+- `requests>=2.25.0` - HTTP library for Jina Reader API calls
+
+## 🌐 Jina Reader API
+
+The website retrieval feature uses the [Jina Reader API](https://jina.ai/reader/) to extract clean, readable content from web pages. 
+
+### API Key (Optional)
+- The API works without authentication but has rate limits
+- For better performance and higher rate limits, get a free API key from [Jina AI](https://jina.ai/)
+- Enter your API key in the interface when processing URLs
+
+### Supported Content
+- Articles and blog posts
+- Documentation pages
+- News websites
+- Most text-based web content
+- Automatically removes ads, navigation, and other clutter
 
 ## 📄 License
 
