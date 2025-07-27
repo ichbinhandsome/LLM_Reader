@@ -68,17 +68,6 @@ Available options:
 
 The website retrieval feature uses the [Jina Reader API](https://jina.ai/reader/) to extract clean, readable content from web pages. 
 
-### API Key (Optional)
-- The API works without authentication but has rate limits
-- For better performance and higher rate limits, get a free API key from [Jina AI](https://jina.ai/)
-- Enter your API key in the interface when processing URLs
-
-### Supported Content
-- Articles and blog posts
-- Documentation pages
-- News websites
-- Most text-based web content
-- Automatically removes ads, navigation, and other clutter
 
 ## 📄 License
 
