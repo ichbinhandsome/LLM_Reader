@@ -50,7 +50,9 @@ class ChatInterface:
         self.pdf_content = ""  # Store PDF content for history display
         self.conversation_history_text = ""  # Store conversation for display
         self.current_image_path = None  # Store current uploaded image path
-        
+        self.url_content = ""  # Store URL content for history display
+        self.jina_api_key = ""  # Store Jina API key if needed
+
     def check_ollama_status(self) -> Tuple[str, str]:
         """Check if Ollama is running and return status."""
         if self.client.check_connection():
@@ -65,13 +67,14 @@ class ChatInterface:
         self.client.clear_conversation()  # Reset conversation when changing models
         return f"Model updated to: {model_name}"
     
-    def reset_conversation(self) -> Tuple[List, str, str, str]:
+    def reset_conversation(self) -> Tuple[List, str, str, str, str]:
         """Reset the conversation history and start fresh."""
         self.client.clear_conversation()
         self.pdf_content = ""
         self.conversation_history_text = ""
         self.current_image_path = None
-        return [], "✅ New conversation started!", "No PDF uploaded yet.", "No image uploaded yet."
+        self.url_content = ""
+        return [], "✅ New conversation started!", "No PDF uploaded yet.", "No image uploaded yet.", "No URL processed yet."
     
     def upload_pdf(self, file) -> str:
         """Handle PDF file upload and extract text."""
@@ -114,6 +117,69 @@ class ChatInterface:
             self.current_image_path = None
             return f"❌ Error processing image: {str(e)}"
     
+    def process_url(self, url: str, api_key: str = "") -> str:
+        """Handle website URL processing using Jina Reader API."""
+        if not url or not url.strip():
+            return "No URL provided"
+
+        url = url.strip()
+        
+        # Basic URL validation
+        if not url.startswith(('http://', 'https://')):
+            return "❌ Invalid URL. Please provide a valid URL starting with http:// or https://"
+        
+        try:
+            import requests
+            
+            # Store the API key if provided
+            if api_key and api_key.strip():
+                self.jina_api_key = api_key.strip()
+            
+            # Construct Jina Reader API URL
+            jina_url = "https://r.jina.ai/" + url
+            
+            # Set up headers
+            headers = {
+                "Accept": "application/json",
+                "X-No-Cache": "true",
+                "X-Retain-Images": "none",
+                "X-Timeout": "10"
+            }
+            
+            # Add authorization if API key is available
+            if self.jina_api_key:
+                headers["Authorization"] = f"Bearer {self.jina_api_key}"
+            
+            # Make the request
+            response = requests.get(jina_url, headers=headers)
+            
+            if response.status_code == 200:
+                # Parse the JSON response
+                data = response.json()
+                
+                # Extract content from the response
+                if 'data' in data and 'content' in data['data']:
+                    content = data['data']['content']
+                    self.url_content = content
+                    
+                    # Add the URL content to conversation history
+                    self.client.chat_with_history(f"I've processed a website URL: {url}. Here's the content: {content}")
+                    
+                    # Calculate some stats
+                    word_count = len(content.split())
+                    char_count = len(content)
+                    
+                    return f"✅ URL processed successfully!\nURL: {url}\nExtracted {word_count} words ({char_count} characters). You can now ask questions about the content."
+                else:
+                    return f"❌ No content found in the response from: {url}"
+            else:
+                return f"❌ Failed to process URL. Status code: {response.status_code}\nError: {response.text}"
+                
+        except requests.RequestException as e:
+            return f"❌ Network error processing URL: {str(e)}"
+        except Exception as e:
+            return f"❌ Error processing URL: {str(e)}"
+    
     def get_image_display(self) -> str:
         """Return the current image path for display."""
         if not self.current_image_path:
@@ -125,6 +191,12 @@ class ChatInterface:
         if not self.pdf_content:
             return "No PDF uploaded yet."
         return self.pdf_content  # Return full content without truncation
+    
+    def get_url_content_display(self) -> str:
+        """Return the URL content for display."""
+        if not self.url_content:
+            return "No URL processed yet."
+        return self.url_content
     
     def chat_response(self, message: str, history: List[List[str]]) -> Generator[Tuple[List[List[str]], str], None, None]:
         """Generate chat response with streaming using ollama_client history functions."""
@@ -196,7 +268,7 @@ class ChatInterface:
                         # Upload type selection
                         upload_type = gr.CheckboxGroup(
                             label="📂 Select Upload Types",
-                            choices=["PDF Document", "Image"],
+                            choices=["PDF Document", "Image", "Website URL"],
                             value=[],
                             interactive=True
                         )
@@ -210,6 +282,13 @@ class ChatInterface:
                                     type="filepath"
                                 )
                                 pdf_status = gr.Textbox(label="PDF Status", interactive=False)
+                                
+                                # PDF content display
+                                with gr.Accordion("📄 Uploaded PDF Content", open=False):
+                                    pdf_content_display = gr.Markdown(
+                                        value="No PDF uploaded yet.",
+                                        height=400
+                                    )
                         
                         # Image upload section (initially hidden)
                         with gr.Row(visible=False) as image_section:
@@ -229,6 +308,32 @@ class ChatInterface:
                                     visible=True,
                                     interactive=False
                                 )
+                        
+                        # Website URL upload section (initially hidden)
+                        with gr.Row(visible=False) as url_section:
+                            with gr.Column():
+                                url_input = gr.Textbox(
+                                    label="🌐 Enter Website URL",
+                                    placeholder="https://example.com",
+                                    lines=1,
+                                    interactive=True
+                                )
+                                jina_api_key = gr.Textbox(
+                                    label="Jina API Key (Optional)",
+                                    placeholder="Enter your Jina API Key for better rate limits",
+                                    lines=1,
+                                    interactive=True,
+                                    type="password"
+                                )
+                                url_submit = gr.Button("📥 Process URL", variant="secondary")
+                                url_status = gr.Textbox(label="URL Status", interactive=False)
+                                
+                                # URL content display
+                                with gr.Accordion("🌐 Website URL Content", open=False):
+                                    url_content_display = gr.Markdown(
+                                        value="No URL processed yet.",
+                                        height=400
+                                    )
                 
                 with gr.Column(scale=3):
                     # Chat interface
@@ -257,43 +362,41 @@ class ChatInterface:
                 gr.Markdown("""
                 ### How to use:
                 1. **Start Ollama**: Make sure Ollama is running (`ollama serve`)
-                2. **Select Upload Types**: Check "PDF Document" and/or "Image" to show upload options
-                3. **Upload Files**: Use the upload boxes that appear based on your selection
-                4. **Start Chatting**: Type your message and press Enter or click Send
-                5. **Reset**: Use "Reset Conversation" to start fresh
+                2. **Select Upload Types**: Check "PDF Document", "Image", and/or "Website URL" to show upload options
+                3. **Upload Files/URLs**: Use the upload boxes or URL input that appear based on your selection
+                4. **For URLs**: Optionally provide a Jina API key for better rate limits and performance
+                5. **Start Chatting**: Type your message and press Enter or click Send
+                6. **Reset**: Use "Reset Conversation" to start fresh
                 
                 ### Tips:
-                - You can upload both PDF and Image simultaneously
+                - You can upload PDF, Image, and process URLs simultaneously
                 - Responses are streamed in real-time
                 - Conversation history is managed automatically
                 - PDF content can be discussed after upload
                 - Images are processed once per upload - upload again for new image analysis
+                - Website URLs are processed using Jina Reader API (works without API key but with rate limits)
+                - Jina API key is optional but recommended for better performance and higher rate limits
                 - For best image analysis, use vision models like `llava:7b` or `llava:13b`
                 - Use clear, specific prompts for best results
                 """)
-            
-            # PDF content section
-            with gr.Accordion("📄 Uploaded PDF Content", open=False):
-                pdf_content_display = gr.Markdown(
-                    value="No PDF uploaded yet.",
-                    height=400
-                )
             
             # Event handlers
             def toggle_upload_sections(selected_types):
                 """Show/hide upload sections based on selection."""
                 show_pdf = "PDF Document" in selected_types
                 show_image = "Image" in selected_types
+                show_url = "Website URL" in selected_types
                 return {
                     pdf_section: gr.update(visible=show_pdf),
-                    image_section: gr.update(visible=show_image)
+                    image_section: gr.update(visible=show_image),
+                    url_section: gr.update(visible=show_url)
                 }
             
             def reset_handler():
-                chatbot_clear, status, pdf_clear, image_clear = self.reset_conversation()
+                chatbot_clear, status, pdf_clear, image_clear, url_clear = self.reset_conversation()
                 # Show a popup notification instead of updating message box
                 gr.Info("✅ Chat reset successfully! Start a new conversation.")
-                return chatbot_clear, "", pdf_clear, image_clear, None
+                return chatbot_clear, "", pdf_clear, image_clear, None, url_clear, ""
             
             def pdf_upload_handler(file):
                 status = self.upload_pdf(file)
@@ -304,16 +407,21 @@ class ChatInterface:
                 image_display = self.get_image_display() 
                 return status, image_display
             
+            def url_handler(url, api_key):
+                status = self.process_url(url, api_key)
+                url_content = self.get_url_content_display()
+                return status, "", url_content  # Clear the URL input after processing and update content display
+            
             # Bind events
             upload_type.change(
                 toggle_upload_sections,
                 inputs=[upload_type],
-                outputs=[pdf_section, image_section]
+                outputs=[pdf_section, image_section, url_section]
             )
             
             reset_btn.click(
                 reset_handler,
-                outputs=[chatbot, msg, pdf_content_display, image_status, current_image]
+                outputs=[chatbot, msg, pdf_content_display, image_status, current_image, url_content_display, url_input]
             )
             
             pdf_upload.upload(
@@ -326,6 +434,12 @@ class ChatInterface:
                 image_upload_handler,
                 inputs=[image_upload],
                 outputs=[image_status, current_image]
+            )
+            
+            url_submit.click(
+                url_handler,
+                inputs=[url_input, jina_api_key],
+                outputs=[url_status, url_input, url_content_display]
             )
             
             # Chat functionality
